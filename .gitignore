@@ -1,0 +1,8 @@
+.DS_Store
+**/*.local.*
+build
+coverage.output
+coverage.out
+.artifacts
+.perf
+dist
