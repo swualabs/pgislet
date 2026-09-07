@@ -3,6 +3,7 @@ package pgislet
 import (
 	"context"
 
+	"github.com/swualabs/pgislet/internal/connection"
 	"github.com/swualabs/pgislet/internal/engine"
 )
 
@@ -39,4 +40,12 @@ var (
 
 func New(ctx context.Context, cfg Config) (*Manager, error) {
 	return engine.New(ctx, cfg)
+}
+
+type ConnectionConfig = connection.Config
+
+type ConnectionParams = connection.Params
+
+func BuildDSN(config ConnectionConfig) (string, error) {
+	return connection.BuildDSN(config)
 }

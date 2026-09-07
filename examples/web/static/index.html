@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <meta name="description" content="Run SQL in an isolated PostgreSQL workspace with pgislet playground" />
+        <title>pgislet pSQL Playground</title>
+        <link rel="icon" href="data:," />
+        <link rel="stylesheet" href="/style.css" />
+        <script src="/app.js" defer></script>
+    </head>
+    <body>
+        <header class="topbar">
+            <div class="connection">
+                <span class="dot" id="connection-dot"></span><span id="connection-label">Connecting</span>
+            </div>
+        </header>
+        <div class="layout">
+            <aside class="sidebar">
+                <div class="workspace-title">
+                    <div>
+                        <div id="workspace-id" class="muted mono">Preparing…</div>
+                    </div>
+                </div>
+                <div class="schema-heading">
+                    <h2>Tables</h2>
+                    <button id="refresh" class="icon-button" aria-label="Refresh table list" title="Refresh">↻</button>
+                </div>
+                <div id="tables" class="tables">
+                    <p class="muted">Preparing sample tables.</p>
+                </div>
+                <div class="sidebar-footer">
+                    <span id="generation">Isolated Islet</span>
+                </div>
+            </aside>
+            <main>
+                <div class="page-heading">
+                    <button id="reconnect" class="button secondary" hidden>Reconnect</button>
+                </div>
+                <section class="editor-card" aria-labelledby="editor-title">
+                    <div class="panel-header">
+                        <h2 id="editor-title">SQL Editor</h2>
+                    </div>
+                    <div class="editor-wrap">
+                        <div id="line-numbers" aria-hidden="true">1</div>
+                        <textarea
+                            id="sql"
+                            aria-label="SQL to execute"
+                            spellcheck="false"
+                            autocapitalize="off"
+                            autocomplete="off"
+                            wrap="off"
+                        >
+SELECT name, category, price
+FROM products
+ORDER BY price DESC;</textarea
+                        >
+                    </div>
+                    <div class="editor-toolbar">
+                        <div class="presets">
+                            <span>Examples</span><button data-preset="select">Select</button
+                            ><button data-preset="join">JOIN</button><button data-preset="create">Create table</button>
+                        </div>
+                        <div class="run-controls">
+                            <kbd id="shortcut">Ctrl ↵</kbd
+                            ><button id="run" class="button primary" disabled>
+                                <span aria-hidden="true">▶</span> Run SQL
+                            </button>
+                        </div>
+                    </div>
+                </section>
+                <section class="results-card" aria-labelledby="result-title">
+                    <div class="panel-header">
+                        <h2 id="result-title">Results <span id="row-count" class="count">—</span></h2>
+                        <div id="result-meta" class="result-meta">Ready to run</div>
+                    </div>
+                    <div id="error" class="error-box" role="alert" hidden></div>
+                    <div id="result" class="result-body">
+                        <div class="empty-state">
+                            <span class="empty-symbol">⌘</span><strong>Preparing your first query.</strong>
+                            <p>Sample results will appear when the database connection is ready.</p>
+                        </div>
+                    </div>
+                    <div class="result-footer">
+                        <span id="command">SELECT · INSERT · UPDATE · CREATE · DROP</span>
+                    </div>
+                </section>
+                <div class="lower-grid">
+                    <section class="history-section">
+                        <div class="section-title">
+                            <h2>Recent queries</h2>
+                        </div>
+                        <div id="history">
+                            <p class="muted">Your recent queries will appear here.</p>
+                        </div>
+                    </section>
+                    <section class="reset-section">
+                        <div>
+                            <button id="reset" class="button secondary" disabled>Clear workspace</button
+                            ><button id="seed" class="button secondary" disabled>Restore samples</button>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+        <dialog id="confirm-dialog">
+            <form method="dialog">
+                <div class="dialog-icon">↻</div>
+                <h2 id="dialog-title">Clear workspace</h2>
+                <p id="dialog-description">All current tables and data will be deleted.</p>
+                <div class="dialog-actions">
+                    <button class="button secondary" value="cancel">Cancel</button
+                    ><button class="button primary" id="dialog-confirm" value="confirm">Clear</button>
+                </div>
+            </form>
+        </dialog>
+        <div id="status" class="sr-only" role="status" aria-live="polite"></div>
+    </body>
+</html>

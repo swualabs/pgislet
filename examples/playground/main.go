@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/swualabs/pgislet/internal/playground"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
@@ -51,5 +50,5 @@ func run() error {
 		return errors.New("provide -container, -dsn, or PGISLET_DSN")
 	}
 
-	return playground.Run(ctx, *dsn, os.Stdout)
+	return Run(ctx, *dsn, os.Stdout)
 }

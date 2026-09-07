@@ -1,4 +1,4 @@
-package playground
+package main
 
 import (
 	"context"
