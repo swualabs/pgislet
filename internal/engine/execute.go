@@ -31,7 +31,7 @@ func (m *Manager) Batch(ctx context.Context, h Islet, statements []string) ([]Re
 		return nil, err
 	}
 
-	if md.Generation != h.Generation {
+	if md.generation != h.generation {
 		return nil, ErrStaleGeneration
 	}
 
@@ -84,7 +84,7 @@ func (m *Manager) execute(ctx context.Context, md metadata, statements []string,
 		token = md.token
 	}
 
-	if _, err = tx.Exec(ctx, `SELECT pgislet_api.enter($1,$2,$3)`, md.ID, md.Generation, token); err != nil {
+	if _, err = tx.Exec(ctx, `SELECT pgislet_api.enter($1,$2,$3)`, md.ID, md.generation, token); err != nil {
 		return nil, classify(err)
 	}
 
@@ -120,7 +120,7 @@ func (m *Manager) execute(ctx context.Context, md metadata, statements []string,
 	}
 
 	if initializing {
-		if _, err = tx.Exec(ctx, `SELECT pgislet_api.finish($1,$2,$3)`, md.ID, md.Generation, md.token); err != nil {
+		if _, err = tx.Exec(ctx, `SELECT pgislet_api.finish($1,$2,$3)`, md.ID, md.generation, md.token); err != nil {
 			return results, classify(err)
 		}
 	}

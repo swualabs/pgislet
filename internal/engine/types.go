@@ -6,7 +6,7 @@ import (
 
 type Islet struct {
 	ID         string
-	Generation int64
+	generation int64
 	State      string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time

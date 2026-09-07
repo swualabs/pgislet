@@ -22,7 +22,7 @@ const metadataSQL = `SELECT id,generation,state,created_at,updated_at,schema_nam
 
 func readMetadata(row pgx.Row) (metadata, error) {
 	var md metadata
-	err := row.Scan(&md.ID, &md.Generation, &md.State, &md.CreatedAt, &md.UpdatedAt, &md.schema, &md.role, &md.password, &md.token)
+	err := row.Scan(&md.ID, &md.generation, &md.State, &md.CreatedAt, &md.UpdatedAt, &md.schema, &md.role, &md.password, &md.token)
 	if err == pgx.ErrNoRows {
 		return md, ErrNotFound
 	}

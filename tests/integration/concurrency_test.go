@@ -76,8 +76,11 @@ func TestDistributedConcurrency(t *testing.T) {
 		})
 	}
 
-	old := h
-	h, err := other.Reset(ctx, h)
+	old, err := m.lookup(ctx, h.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err = other.Reset(ctx, h)
 	if err != nil {
 		t.Fatal(err)
 	}

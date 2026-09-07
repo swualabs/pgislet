@@ -40,7 +40,7 @@ function setBusy(value) {
 
 function sessionInfo(h) {
     $('workspace-id').textContent = h.ID.slice(0, 12) + '…'
-    $('generation').textContent = 'Generation ' + h.Generation + ' · ' + h.State
+    $('workspace-state').textContent = 'Isolated Islet · ' + h.State
 }
 
 async function api(path, options = {}) {
@@ -282,7 +282,7 @@ $('confirm-dialog').addEventListener('close', async () => {
         await refreshSchema()
         $('row-count').textContent = '—'
         $('result-meta').textContent = resetMode === 'seed' ? 'Samples restored' : 'Workspace cleared'
-        $('command').textContent = 'New generation'
+        $('command').textContent = 'Workspace reset'
         $('status').textContent = $('result-meta').textContent
         empty(
             resetMode === 'seed' ? 'Sample data is ready.' : 'Your empty workspace is ready.',

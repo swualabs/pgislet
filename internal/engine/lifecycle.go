@@ -38,7 +38,7 @@ func (m *Manager) create(ctx context.Context, initializing bool) (Islet, error) 
 		}
 	}
 
-	md := metadata{Islet: Islet{ID: id, Generation: 1, State: state}, schema: "pgislet_i_" + id, role: "pgislet_r_" + id, password: password, token: token}
+	md := metadata{Islet: Islet{ID: id, generation: 1, State: state}, schema: "pgislet_i_" + id, role: "pgislet_r_" + id, password: password, token: token}
 	tx, err := m.pool.Begin(ctx)
 	if err != nil {
 		return Islet{}, wrap(ErrLifecycle, err)
@@ -85,7 +85,7 @@ func lockMetadata(ctx context.Context, tx pgx.Tx, h Islet) (metadata, error) {
 		return md, err
 	}
 
-	if md.Generation != h.Generation {
+	if md.generation != h.generation {
 		return md, ErrStaleGeneration
 	}
 
@@ -147,7 +147,7 @@ func (m *Manager) reset(ctx context.Context, h Islet, initialize, recovering boo
 		}
 	}
 
-	err = tx.QueryRow(ctx, `UPDATE pgislet_internal.islets SET state=$2,generation=generation+1,init_token=NULLIF($3,''),updated_at=clock_timestamp() WHERE id=$1 RETURNING generation,state,updated_at`, h.ID, state, token).Scan(&md.Generation, &md.State, &md.UpdatedAt)
+	err = tx.QueryRow(ctx, `UPDATE pgislet_internal.islets SET state=$2,generation=generation+1,init_token=NULLIF($3,''),updated_at=clock_timestamp() WHERE id=$1 RETURNING generation,state,updated_at`, h.ID, state, token).Scan(&md.generation, &md.State, &md.UpdatedAt)
 	if err != nil {
 		return Islet{}, wrap(ErrLifecycle, err)
 	}
@@ -246,7 +246,7 @@ func (m *Manager) Reinitialize(ctx context.Context, h Islet, statements []string
 
 func (m *Manager) initialize(ctx context.Context, h Islet, statements []string) (Islet, error) {
 	md, err := m.lookup(ctx, h.ID)
-	if err == nil && md.Generation != h.Generation {
+	if err == nil && md.generation != h.generation {
 		err = ErrStaleGeneration
 	}
 
@@ -258,7 +258,7 @@ func (m *Manager) initialize(ctx context.Context, h Islet, statements []string) 
 		recovery, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_, stateErr := m.pool.Exec(recovery, `UPDATE pgislet_internal.islets SET state='failed',init_token=NULL,updated_at=clock_timestamp() WHERE id=$1 AND generation=$2 AND state='initializing'`, h.ID, h.Generation)
+		_, stateErr := m.pool.Exec(recovery, `UPDATE pgislet_internal.islets SET state='failed',init_token=NULL,updated_at=clock_timestamp() WHERE id=$1 AND generation=$2 AND state='initializing'`, h.ID, h.generation)
 		current, openErr := m.Open(recovery, h.ID)
 
 		if openErr == nil {

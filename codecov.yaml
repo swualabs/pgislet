@@ -1,0 +1,20 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 70%
+        threshold: 0%
+    patch:
+      default:
+        target: 70%
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
+
+ignore:
+  - "**/*_test.go"
+  - "examples/**" # Runnable demos, HTTP frontend, and application wiring; outside the library coverage target.
+  - "pgislet.go" # Public aliases and forwarding functions; implementations are covered under internal.
+  - "internal/engine/types.go" # Data structures only; no executable behavior.

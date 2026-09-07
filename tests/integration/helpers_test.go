@@ -66,10 +66,11 @@ type fixture struct {
 
 type metadata struct {
 	pgislet.Islet
-	schema   string
-	role     string
-	password string
-	token    string
+	Generation int64
+	schema     string
+	role       string
+	password   string
+	token      string
 }
 
 func manager(t *testing.T, cfg pgislet.Config) *fixture {
@@ -127,7 +128,7 @@ func (f *fixture) enter(ctx context.Context, md metadata, token any) error {
 }
 
 func (f *fixture) stageInitialization(ctx context.Context, h pgislet.Islet) (pgislet.Islet, error) {
-	_, err := f.pool.Exec(ctx, `UPDATE pgislet_internal.islets SET state='initializing',generation=generation+1,init_token='abandoned-initialization-fixture' WHERE id=$1 AND generation=$2`, h.ID, h.Generation)
+	_, err := f.pool.Exec(ctx, `UPDATE pgislet_internal.islets SET state='initializing',generation=generation+1,init_token='abandoned-initialization-fixture' WHERE id=$1`, h.ID)
 	if err != nil {
 		return h, err
 	}
