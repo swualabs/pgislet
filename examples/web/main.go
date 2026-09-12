@@ -28,8 +28,8 @@ func main() {
 func run() error {
 	_, source, _, _ := runtime.Caller(0)
 	flags := flag.NewFlagSet("pgislet-web", flag.ContinueOnError)
-	disposable := flags.Bool("container", false, "use a disposable PostgreSQL 17 Docker container")
-	dsn := flags.String("dsn", os.Getenv("PGISLET_DSN"), "management DSN for a dedicated PostgreSQL 17 database")
+	disposable := flags.Bool("container", false, "use a disposable PostgreSQL 18 Docker container")
+	dsn := flags.String("dsn", os.Getenv("PGISLET_DSN"), "management DSN for a dedicated PostgreSQL 17 or 18 database")
 	addr := flags.String("addr", "127.0.0.1:8080", "HTTP listen address (loopback only)")
 	assets := flags.String("assets", filepath.Join(filepath.Dir(source), "static"), "frontend asset directory")
 
@@ -59,7 +59,7 @@ func run() error {
 		setup, cancel := context.WithTimeout(ctx, 3*time.Minute)
 		defer cancel()
 
-		db, err := postgres.Run(setup, "postgres:17-alpine", postgres.WithDatabase("pgislet_web"), postgres.WithUsername("postgres"), postgres.WithPassword("disposable-web-secret"), postgres.BasicWaitStrategies())
+		db, err := postgres.Run(setup, "postgres:18-alpine", postgres.WithDatabase("pgislet_web"), postgres.WithUsername("postgres"), postgres.WithPassword("disposable-web-secret"), postgres.BasicWaitStrategies())
 		if err != nil {
 			return err
 		}

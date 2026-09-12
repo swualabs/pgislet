@@ -23,8 +23,8 @@ func (m *Manager) bootstrap(ctx context.Context) error {
 		return wrap(ErrUnsupported, err)
 	}
 
-	if version < 170000 || version >= 180000 {
-		return wrap(ErrUnsupported, fmt.Errorf("PostgreSQL 17 required, got %d", version))
+	if version < 170000 || version >= 190000 {
+		return wrap(ErrUnsupported, fmt.Errorf("PostgreSQL 17 or 18 required, got %d", version))
 	}
 
 	if _, err = tx.Exec(ctx, `SELECT pg_catalog.pg_advisory_xact_lock(719326448107)`); err != nil {

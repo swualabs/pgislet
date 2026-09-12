@@ -4,6 +4,11 @@ import "testing"
 
 func TestPolicy(t *testing.T) {
 	allowed := []string{
+		`SELECT uuidv4(), uuidv7(), uuid_extract_version(uuidv7()), uuid_extract_timestamp(uuidv7())`,
+		`CREATE TABLE generated(n int, doubled int GENERATED ALWAYS AS (n*2) VIRTUAL)`,
+		`UPDATE users SET age=age+1 RETURNING WITH (OLD AS o, NEW AS n) o.age,n.age`,
+		`CREATE TABLE periods(resource daterange, valid_at daterange, PRIMARY KEY(resource, valid_at WITHOUT OVERLAPS))`,
+		`CREATE TABLE bookings(resource daterange, valid_at daterange, FOREIGN KEY(resource, PERIOD valid_at) REFERENCES periods(resource, PERIOD valid_at))`,
 		`SELECT 1`, `WITH x AS (SELECT 1 AS n) SELECT sum(n) FROM x`,
 		`CREATE TABLE users(id int PRIMARY KEY, name text)`, `ALTER TABLE users ADD COLUMN age int`,
 		`DROP TABLE users CASCADE`, `CREATE INDEX x ON users(id)`, `DROP INDEX x`,
@@ -26,6 +31,9 @@ func TestPolicy(t *testing.T) {
 	}
 
 	denied := []string{
+		`CREATE TABLE generated(n text GENERATED ALWAYS AS (pg_read_file('/etc/passwd')) VIRTUAL)`,
+		`UPDATE users SET age=1 RETURNING WITH (OLD AS o, NEW AS n) pg_read_file('/etc/passwd')`,
+		`SELECT uuidv7(public.sneaky())`,
 		``, `SELECT 1; SELECT 2`, `CoMmIt`, `/* a */ SET /*b*/ ROLE postgres`,
 		`CREATE ROLE x`, `CREATE DATABASE x`, `CREATE SCHEMA x`, `DROP SCHEMA islet CASCADE`,
 		`ALTER SCHEMA islet RENAME TO x`, `GRANT SELECT ON users TO PUBLIC`,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 
@@ -150,5 +151,42 @@ func TestNonSuperuserManagement(t *testing.T) {
 
 	if err = node.Delete(ctx, h); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSupportedServerVersion(t *testing.T) {
+	m := manager(t, pgislet.Config{})
+	var version int
+
+	if err := m.pool.QueryRow(context.Background(), `SELECT current_setting('server_version_num')::int`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+
+	major := os.Getenv("PGISLET_TEST_POSTGRES_MAJOR")
+
+	if major == "" {
+		major = "18"
+	}
+
+	if fmt.Sprint(version/10000) != major {
+		t.Fatalf("expected PostgreSQL %s, got %d", major, version)
+	}
+
+	h := islet(t, m)
+	result := run(t, m, h, `SELECT current_user, session_user`)
+	md, err := m.lookup(context.Background(), h.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result.Rows[0][0] != md.role || result.Rows[0][1] != md.role {
+		t.Fatal("Runtime execution did not use the Islet identity")
+	}
+
+	if major == "18" {
+		_, err := m.Execute(context.Background(), h, `CREATE FUNCTION uuidv7() RETURNS text LANGUAGE sql AS $$ SELECT 'shadowed'::text $$`)
+		if !errors.Is(err, pgislet.ErrPolicy) {
+			t.Fatalf("PostgreSQL 18 catalog routine name was not reserved: %v", err)
+		}
 	}
 }

@@ -10,7 +10,7 @@ Each workspace is called an **Islet**. An Islet has a dedicated PostgreSQL schem
 
 > [!WARNING]
 >
-> pgislet supports PostgreSQL 17. It is not a general-purpose SQL proxy that permits arbitrary PostgreSQL administrative commands. It provides object isolation through roles and privileges, but does not allocate a separate database or dedicated CPU, memory, or disk resources to each user. It does not provide container- or VM-level isolation.
+> pgislet is not a general-purpose SQL proxy that permits arbitrary PostgreSQL administrative commands. It provides object isolation through roles and privileges, but does not allocate a separate database or dedicated CPU, memory, or disk resources to each user. It does not provide container- or VM-level isolation.
 
 ## Purpose and scope
 
@@ -61,13 +61,17 @@ Multiple Managers can use the same PostgreSQL database. Per-Islet concurrency is
 
 ## Requirements and installation
 
+pgislet supports **PostgreSQL 17.x and 18.x**. PostgreSQL 18 is the default for examples, integration tests, and Compose. CI runs the full test suite against both versions.
+
 | Component         | Requirement                                                 |
 | ----------------- | ----------------------------------------------------------- |
 | Go                | 1.26.1 or later, as specified in `go.mod`                   |
-| PostgreSQL        | 17.x                                                        |
+| PostgreSQL        | 17.x and 18.x                                                |
 | SQL parser        | `pg_query_go/v6`; requires CGO and a C compiler             |
 | PostgreSQL driver | `pgx/v5`                                                    |
 | Docker            | Required for container-based examples and integration tests |
+
+The SQL parser is pinned to `pg_query_go/v6` development commit `e6a9b9881a8b`, which supports PostgreSQL 18 grammar. The exact dependency version is recorded in `go.mod`.
 
 Add the library to an existing Go project:
 
@@ -90,7 +94,7 @@ import "github.com/swualabs/pgislet"
 
 The management account must be able to create and drop roles and schemas, manage internal functions and tables, and grant or revoke the required privileges. The examples use the `postgres` management account. If you use an account with restricted privileges, verify that it can perform these operations. Compatibility with every managed PostgreSQL service's privilege model is not guaranteed.
 
-The repository includes a Compose configuration for starting the example PostgreSQL instance.
+The repository includes a Compose configuration for starting a PostgreSQL 18 example instance. It uses the `pgdata18` volume mounted at `/var/lib/postgresql`, following the PostgreSQL 18 Docker image layout. Existing PostgreSQL 17 data in `pgdata` is not reused or deleted. To migrate existing data, use a supported dump/restore or `pg_upgrade` workflow; changing the image tag alone does not upgrade a database.
 
 The default connection settings below are for local examples only. Do not use these credentials in production.
 
@@ -709,6 +713,8 @@ SQL policy validation inspects the PostgreSQL AST rather than relying solely on 
 | Functions and procedures | Local `LANGUAGE sql` definitions and calls that satisfy policy     |
 | Other                    | COMMENT and renaming for permitted objects, and EXPLAIN            |
 
+On PostgreSQL 18, supported features also include virtual generated columns, OLD/NEW values and aliases in `RETURNING`, temporal constraints (`WITHOUT OVERLAPS` and `PERIOD`), and `uuidv4`, `uuidv7`, `uuid_extract_version`, and `uuid_extract_timestamp`. SQL features must be supported by both the connected PostgreSQL server version and the SQL policy.
+
 Not all built-in functions are allowed. Callers can use functions registered in the policy and permitted local functions in the current Islet. Function bodies are validated, and user-defined function names that conflict with PostgreSQL built-ins are restricted.
 
 The [policy implementation](internal/policy/policy.go) and [policy tests](internal/policy/policy_test.go) define the supported statements, objects, and functions. For example, allowing a trigger-related AST node does not imply support for every PostgreSQL trigger use case: the referenced function must also satisfy language and privilege requirements.
@@ -844,7 +850,7 @@ The Registry stores passwords required for Runtime authentication. These are not
 go run ./examples/playground -container
 ```
 
-This starts a temporary PostgreSQL 17 container and demonstrates:
+This starts a temporary PostgreSQL 18 container and demonstrates:
 
 1. Initializing a workspace with sample SQL
 2. Opening and querying the same workspace through another Manager
@@ -922,11 +928,18 @@ This skips integration tests; it does not demonstrate that they pass. Use the Do
 
 ### PostgreSQL integration tests
 
+Run either supported server version explicitly:
+
+```sh
+PGISLET_TEST_POSTGRES_MAJOR=17 go test ./tests/integration -count=1
+PGISLET_TEST_POSTGRES_MAJOR=18 go test ./tests/integration -count=1
+```
+
 ```sh
 go test ./tests/integration -count=1
 ```
 
-The suite creates and terminates PostgreSQL 17 through Testcontainers. It does not use a supplied `PGISLET_DSN` to target an existing database. In the default mode, failure to prepare Docker causes the suite to fail.
+The suite creates and terminates PostgreSQL through Testcontainers. It defaults to 18; set `PGISLET_TEST_POSTGRES_MAJOR=17` to test 17. CI runs the full suite against both versions. CI uses separate PostgreSQL 17 and 18 jobs with fail-fast disabled. Both jobs verify the actual server major and inspect JSON test results: required integration tests must pass, and only the PostgreSQL 18 feature test may skip on 17. Test logs and coverage profiles are retained as version-specific artifacts. The workflow runs on pushes and pull requests targeting `main`, and can also be started manually with `workflow_dispatch`. It does not use a supplied `PGISLET_DSN` to target an existing database. In the default mode, failure to prepare Docker causes the suite to fail.
 
 Integration tests cover user-object isolation, Runtime identity checks, same-Islet contention, initialization, recovery, external dependencies, result limits, stale-handle rejection, and process termination.
 
@@ -984,10 +997,6 @@ No background task monitors initialization state. The application must inspect t
 ### Are all SQL statements and extensions supported?
 
 No. SQL must satisfy both the policy allowlist and PostgreSQL privileges. Administrative capabilities such as extension installation and arbitrary function languages are not exposed through user SQL.
-
-### Can I use PostgreSQL 18?
-
-The current implementation permits only 17.x. Support for another version requires validation of the parser, policy, catalogs, and privilege behavior, rather than simply removing the version check.
 
 ### Can one database support an unlimited number of users?
 

@@ -3,47 +3,70 @@ name: Backend Test CI
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'cmd/**'
-      - 'internal/**'
-      - 'examples/**'
-      - 'go.mod'
-      - 'go.sum'
-      - 'go.work'
-      - 'pgislet.go'
-      - '.github/workflows/**'
-
   pull_request:
     branches: [ main ]
-    paths:
-      - 'cmd/**'
-      - 'internal/**'
-      - 'examples/**'
-      - 'go.mod'
-      - 'go.sum'
-      - 'go.work'
-      - 'pgislet.go'
-      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
+    name: PostgreSQL ${{ matrix.postgres }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["17", "18"]
+    env:
+      CGO_ENABLED: "1"
+      PGISLET_UNIT_ONLY: "0"
+      PGISLET_CRASH_HELPER: "0"
+      PGISLET_TEST_POSTGRES_MAJOR: ${{ matrix.postgres }}
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
           cache: true
 
+      - name: Check toolchain and Docker
+        run: |
+          go version
+          gcc --version
+          docker info
+
+      - name: Vet
+        run: go vet ./...
+
       - name: Run tests with coverage
-        run: go test -p=1 -v -coverprofile=coverage.out ./...
+        run: go test -race -p=1 -json -count=1 -timeout=10m -coverpkg=.,./internal/... -coverprofile=coverage.out ./... | tee test-results.jsonl
+
+      - name: Verify integration tests actually ran
+        if: ${{ !cancelled() }}
+        run: python3 .github/scripts/check-test-results.py "$PGISLET_TEST_POSTGRES_MAJOR" test-results.jsonl
+
+      - name: Preserve test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-${{ matrix.postgres }}-test-results
+          path: |
+            test-results.jsonl
+            coverage.out
+          if-no-files-found: error
 
       - name: Upload coverage to Codecov
         if: ${{ github.event_name != 'pull_request' || !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-codecov') }}
         uses: codecov/codecov-action@v5
         with:
           files: coverage.out
+          flags: postgres-${{ matrix.postgres }}
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
