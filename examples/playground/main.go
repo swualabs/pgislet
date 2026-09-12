@@ -19,14 +19,14 @@ func main() {
 }
 
 func run() error {
-	disposable := flag.Bool("container", false, "start and remove a disposable PostgreSQL 17 Docker container")
-	dsn := flag.String("dsn", os.Getenv("PGISLET_DSN"), "management DSN for a dedicated PostgreSQL 17 database")
+	disposable := flag.Bool("container", false, "start and remove a disposable PostgreSQL 18 Docker container")
+	dsn := flag.String("dsn", os.Getenv("PGISLET_DSN"), "management DSN for a dedicated PostgreSQL 17 or 18 database")
 	flag.Parse()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	if *disposable {
-		db, err := postgres.Run(ctx, "postgres:17-alpine", postgres.WithDatabase("pgislet_example"), postgres.WithUsername("postgres"), postgres.WithPassword("disposable-example-secret"), postgres.BasicWaitStrategies())
+		db, err := postgres.Run(ctx, "postgres:18-alpine", postgres.WithDatabase("pgislet_example"), postgres.WithUsername("postgres"), postgres.WithPassword("disposable-example-secret"), postgres.BasicWaitStrategies())
 		if err != nil {
 			return err
 		}

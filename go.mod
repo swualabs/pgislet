@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/pganalyze/pg_query_go/v6 v6.2.2
+	github.com/pganalyze/pg_query_go/v6 v6.2.3-0.20260902212127-e6a9b9881a8b
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
 )
 

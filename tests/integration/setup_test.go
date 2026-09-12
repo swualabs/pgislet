@@ -24,7 +24,19 @@ func TestMain(m *testing.M) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	container, err := postgres.Run(ctx, "postgres:17-alpine", postgres.WithDatabase("pgislet"), postgres.WithUsername("postgres"), postgres.WithPassword("integration-secret"), postgres.BasicWaitStrategies())
+	major := os.Getenv("PGISLET_TEST_POSTGRES_MAJOR")
+
+	if major == "" {
+		major = "18"
+	}
+
+	if major != "17" && major != "18" {
+		fmt.Fprintln(os.Stderr, "PGISLET_TEST_POSTGRES_MAJOR must be 17 or 18")
+		os.Exit(1)
+	}
+
+	fmt.Fprintln(os.Stderr, "Integration PostgreSQL major:", major)
+	container, err := postgres.Run(ctx, "postgres:"+major+"-alpine", postgres.WithDatabase("pgislet"), postgres.WithUsername("postgres"), postgres.WithPassword("integration-secret"), postgres.BasicWaitStrategies())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "PostgreSQL testcontainer:", err)
 		os.Exit(1)
