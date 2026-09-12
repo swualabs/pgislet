@@ -1,3 +1,10 @@
+<p align="center">
+  <img src="./docs/banner.png" alt="pgislet">
+</p>
+
+[![codecov](https://codecov.io/github/swualabs/pgislet/graph/badge.svg?token=LJOTaU3KwO)](https://codecov.io/github/swualabs/pgislet)
+[![Backend Test CI](https://github.com/swualabs/pgislet/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/swualabs/pgislet/actions/workflows/test.yml)
+
 # pgislet
 
 [日本語のREADME](./docs/README.ja.md)
