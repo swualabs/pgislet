@@ -731,7 +731,7 @@ The [policy implementation](internal/policy/policy.go) and [policy tests](intern
 - Administrative operations such as role and database creation, alteration, deletion, and privilege grants or revocations
 - User-managed schemas and object ownership changes
 - Session management, including `SET`, `SET ROLE`, and transaction control
-- Temporary and unlogged tables
+- Temporary and unlogged relations, including conversion through `ALTER TABLE ... SET UNLOGGED` or `ALTER SEQUENCE ... SET UNLOGGED`
 - Concurrent index creation and tablespace selection
 - Functions outside the policy and functions in other ordinary schemas
 - User-defined functions and procedures in languages other than `LANGUAGE sql`, including `plpgsql`
@@ -932,6 +932,21 @@ PGISLET_UNIT_ONLY=1 go test ./...
 ```
 
 This skips integration tests; it does not demonstrate that they pass. Use the Docker-based suite below for complete validation and coverage measurement.
+
+### SQL policy fuzzing
+
+Run the two fuzz targets independently. They do not require Docker or execute generated SQL against PostgreSQL.
+
+```sh
+go test ./internal/policy -run='^$' -fuzz='^FuzzPolicySQL$' -fuzztime=30s -parallel=2
+go test ./internal/policy -run='^$' -fuzz='^FuzzPolicyExpressions$' -fuzztime=30s -parallel=2
+```
+
+`FuzzPolicySQL` checks arbitrary input up to 32 KiB for crashes, inconsistent decisions, and mutation of caller-supplied function permissions. `FuzzPolicyExpressions` places allowed and prohibited calls into valid SQL contexts, varying nesting, comments, qualification, and identifier spelling. Prohibited calls cover session configuration, notifications, file access, dynamic SQL, external schemas, and the Runtime Gateway. Positive controls ensure that rejecting every input cannot satisfy the test.
+
+CI runs each target for 30 seconds in a separate job and retains logs and any failure inputs. Go writes reproducible failures under `internal/policy/testdata/fuzz/`; preserve these inputs as regression cases when fixing a failure. Seed cases also run with ordinary `go test`.
+
+The integration suite verifies policy rejection and rollback on PostgreSQL 17 and 18, including earlier DDL and DML in the same batch, Registry metadata, and other Islets. Rejection at the first, middle, and last positions must report the correct statement index; a sequence probe verifies that subsequent statements do not run. Positive tests exercise local function creation, replacement, removal, and recreation within a batch, including rollback of function changes. Failed initialization is checked separately because it intentionally transitions the Islet to `failed`.
 
 ### PostgreSQL integration tests
 
