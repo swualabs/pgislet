@@ -70,3 +70,40 @@ jobs:
           flags: postgres-${{ matrix.postgres }}
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  fuzz:
+    name: SQL policy fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [FuzzPolicySQL, FuzzPolicyExpressions]
+    env:
+      CGO_ENABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Fuzz SQL policy
+        env:
+          FUZZ_TARGET: ${{ matrix.target }}
+        run: go test ./internal/policy -run='^$' -fuzz="^${FUZZ_TARGET}$" -fuzztime=30s -parallel=2 -timeout=3m 2>&1 | tee fuzz-results.log
+
+      - name: Preserve fuzz results and failure inputs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: policy-fuzz-${{ matrix.target }}
+          path: |
+            fuzz-results.log
+            internal/policy/testdata/fuzz/
+          if-no-files-found: error

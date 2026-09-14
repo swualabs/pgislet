@@ -724,7 +724,7 @@ PostgreSQL 18では、仮想生成列、`RETURNING`のOLD/NEW値と別名、時�
 - ロールやデータベースの作成・変更・削除、権限の付与・取り消しなどの管理操作
 - ユーザーによるスキーマ管理とオブジェクト所有者の変更
 - `SET`、`SET ROLE`、トランザクション制御などのセッション管理
-- 一時テーブルとUnloggedテーブル
+- 一時リレーションとUnloggedリレーション（`ALTER TABLE ... SET UNLOGGED`と`ALTER SEQUENCE ... SET UNLOGGED`による変更を含む）
 - Concurrent Indexの作成とTablespaceの指定
 - ポリシー対象外の関数と、他の通常スキーマの関数
 - `plpgsql`など、`LANGUAGE sql`以外のユーザー定義関数・プロシージャ
@@ -925,6 +925,21 @@ PGISLET_UNIT_ONLY=1 go test ./...
 ```
 
 これは統合テストをスキップするもので、成功を確認したことにはなりません。完全な検証とカバレッジ測定には、以下のDockerベースのテストを使用します。
+
+### SQLポリシーのファジング
+
+2つのファズターゲットを個別に実行します。Dockerは不要で、生成したSQLをPostgreSQLに対して実行することはありません。
+
+```sh
+go test ./internal/policy -run='^$' -fuzz='^FuzzPolicySQL$' -fuzztime=30s -parallel=2
+go test ./internal/policy -run='^$' -fuzz='^FuzzPolicyExpressions$' -fuzztime=30s -parallel=2
+```
+
+`FuzzPolicySQL`は最大32 KiBの任意入力について、クラッシュ、判定の不一致、呼び出し元が渡した関数権限の変更を検証します。`FuzzPolicyExpressions`は構文上有効なSQLに許可対象と禁止対象の関数呼び出しを埋め込み、入れ子、コメント、スキーマ修飾、識別子の表記を変化させます。禁止対象にはセッション設定、通知、ファイルアクセス、動的SQL、外部スキーマ、Runtime Gatewayの呼び出しを含みます。正常な入力の許可も確認するため、すべて拒否する実装ではテストを通過できません。
+
+CIでは各ターゲットを別ジョブで30秒間実行し、ログと失敗入力を保存します。Goは再現用の失敗入力を`internal/policy/testdata/fuzz/`に保存します。修正時には回帰テストとして保持してください。シード入力は通常の`go test`でも実行されます。
+
+統合テストはPostgreSQL 17と18でポリシー拒否とロールバックを検証し、同じバッチで先行したDDL・DML、Registryのメタデータ、別のIsletへの影響も確認します。先頭・中間・末尾で拒否された場合の文番号を検証し、シーケンスを使って後続の文が実行されていないことも確認します。正常系ではバッチ内のローカル関数の作成・置換・削除・再作成と、関数変更のロールバックを検証します。初期化失敗は意図的にIsletを`failed`へ遷移させるため、別途検証します。
 
 ### PostgreSQL統合テスト
 
