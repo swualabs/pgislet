@@ -4,6 +4,9 @@ const history = []
 let connected = false
 let busy = false
 let resetMode = 'reset'
+let signupMode = false
+let signupEnabled = true
+let currentUser = null
 const presets = {
     select: 'SELECT name, category, price\nFROM products\nORDER BY price DESC;',
     join: 'SELECT c.name AS customer, p.name AS product,\n       o.quantity, p.price * o.quantity AS total\nFROM orders o\nJOIN customers c ON c.id = o.customer_id\nJOIN products p ON p.id = o.product_id\nORDER BY o.id;',
@@ -32,6 +35,8 @@ function setBusy(value) {
     busy = value
     for (const id of ['run', 'reset', 'seed', 'refresh']) $(id).disabled = value || !connected
     $('reconnect').disabled = value
+    $('logout').disabled = value
+    $('account-settings').disabled = value
     $('run').replaceChildren(
         element('span', value ? '◌' : '▶'),
         document.createTextNode(value ? 'Running…' : 'Run SQL'),
@@ -65,12 +70,8 @@ async function api(path, options = {}) {
 
     const data = await response.json()
     if (!response.ok) {
-        if (response.status === 401) {
-            connected = false
-            $('reconnect').hidden = false
-            $('connection-label').textContent = 'Reconnect required'
-            $('connection-dot').classList.remove('ready')
-        }
+        if (response.status === 401 && !path.startsWith('auth/')) showAuth()
+
         throw data
     }
     return data
@@ -250,7 +251,7 @@ async function connect() {
         $('connection-dot').classList.add('ready')
         await refreshSchema()
         setBusy(false)
-        if (h.State === 'active') await execute()
+        empty('Your workspace is ready.', 'Select a sample query or write your own SQL.')
     } catch (err) {
         $('reconnect').hidden = false
         $('connection-label').textContent = 'Check connection'
@@ -331,4 +332,124 @@ $('refresh').addEventListener('click', async () => {
 })
 if (/Mac|iPhone|iPad/.test(navigator.platform)) $('shortcut').textContent = '⌘ ↵'
 updateLines()
-connect()
+bootstrap()
+
+
+function showAuth(message = '') {
+    connected = false
+    currentUser = null
+    setAuthMode(false)
+    clearError()
+    $('row-count').textContent = '—'
+    $('result-meta').textContent = 'Ready to run'
+    $('result-meta').classList.remove('success')
+    $('command').textContent = 'SELECT · INSERT · UPDATE · CREATE · DROP'
+    history.length = 0
+    $('history').replaceChildren(element('p', 'Your recent queries will appear here.', 'muted'))
+    $('tables').replaceChildren()
+    $('playground').hidden = true
+    $('account-menu').hidden = true
+    $('auth-screen').hidden = false
+    $('connection-label').textContent = 'Sign in to continue'
+    $('connection-dot').classList.remove('ready')
+    $('auth-password').value = ''
+    $('auth-error').hidden = !message
+    $('auth-error').textContent = message
+    $('account-dialog').close()
+    $('confirm-dialog').close()
+    empty('Your workspace is private.', 'Sign in to continue.')
+    editor.value = presets.select
+    updateLines()
+    setBusy(false)
+}
+
+async function signedIn(user) {
+    currentUser = user
+    $('account-name').textContent = user.name
+    $('auth-screen').hidden = true
+    $('account-menu').hidden = false
+    $('playground').hidden = false
+    $('auth-password').value = ''
+    await connect()
+}
+
+async function bootstrap() {
+    try {
+        const config = await api('config')
+        signupEnabled = config.signup
+        $('auth-switch').hidden = !signupEnabled
+        const data = await api('auth/me')
+        await signedIn(data.user)
+    } catch (err) {
+        showAuth(err.error?.kind === 'session' ? '' : err.error?.message)
+    }
+}
+
+function setAuthMode(signup) {
+    signupMode = signup
+    $('auth-title').textContent = signupMode ? 'Create your account' : 'Welcome back'
+    $('auth-description').textContent = signupMode ? 'A personal workspace, ready when you are.' : 'Sign in to open your SQL workspace.'
+    $('name-field').hidden = !signupMode
+    $('auth-name').required = signupMode
+    $('password-help').hidden = !signupMode
+    $('auth-password').autocomplete = signupMode ? 'new-password' : 'current-password'
+    $('auth-submit').textContent = signupMode ? 'Create account' : 'Sign in'
+    $('auth-switch').textContent = signupMode ? 'Already have an account? Sign in' : 'New here? Create an account'
+    $('auth-error').hidden = true
+}
+
+$('auth-switch').addEventListener('click', () => setAuthMode(!signupMode))
+
+$('auth-form').addEventListener('submit', async (event) => {
+    event.preventDefault()
+    $('auth-submit').disabled = true
+    $('auth-switch').disabled = true
+    $('auth-error').hidden = true
+    const input = { email: $('auth-email').value, password: $('auth-password').value }
+    if (signupMode) input.name = $('auth-name').value
+    try {
+        const data = await api(signupMode ? 'auth/register' : 'auth/login', { method: 'POST', body: JSON.stringify(input) })
+        await signedIn(data.user)
+    } catch (err) {
+        $('auth-error').textContent = err.error?.message || 'Unable to sign in.'
+        $('auth-error').hidden = false
+    } finally {
+        $('auth-submit').disabled = false
+        $('auth-switch').disabled = false
+    }
+})
+
+$('logout').addEventListener('click', async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+        await api('auth/logout', { method: 'POST', body: '{}' })
+        showAuth()
+    } catch (err) {
+        showError(err)
+    } finally {
+        setBusy(false)
+    }
+})
+
+$('account-settings').addEventListener('click', () => {
+    $('password-form').reset()
+    $('password-error').hidden = true
+    $('account-dialog').showModal()
+})
+$('close-account').addEventListener('click', () => $('account-dialog').close())
+$('password-form').addEventListener('submit', async (event) => {
+    event.preventDefault()
+    $('save-password').disabled = true
+    $('password-error').hidden = true
+    try {
+        await api('auth/password', { method: 'POST', body: JSON.stringify({ currentPassword: $('current-password').value, newPassword: $('new-password').value }) })
+        $('password-form').reset()
+        showAuth('Password changed. Sign in with your new password.')
+    } catch (err) {
+        $('password-error').textContent = err.error?.message || 'Unable to change password.'
+        $('password-error').hidden = false
+    } finally {
+        $('save-password').disabled = false
+    }
+})

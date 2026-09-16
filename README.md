@@ -851,10 +851,12 @@ The Registry stores passwords required for Runtime authentication. These are not
 
 ## Example applications
 
+The CLI and web applications share a separate Go module in `examples/go.mod`. Their dependencies, including Gin and Bun, are independent of the library module. A local `replace github.com/swualabs/pgislet => ..` directive uses the library checkout. Run the following commands from the repository root; `go -C examples` selects the example module. Root-level `go test ./...` does not include this nested module.
+
 ### CLI Playground
 
 ```sh
-go run ./examples/playground -container
+go -C examples run ./playground -container
 ```
 
 This starts a temporary PostgreSQL 18 container and demonstrates:
@@ -871,64 +873,47 @@ To use an existing database:
 
 ```sh
 PGISLET_DSN='postgres://postgres:password@localhost:5432/appdb?sslmode=disable' \
-    go run ./examples/playground
+    go -C examples run ./playground
 ```
 
 You can also supply the DSN with `-dsn`.
 
 ### Web Playground
 
-```sh
-go run ./examples/web -container
-```
-
-Open [http://127.0.0.1:8080](http://127.0.0.1:8080).
-
-To use a different port:
+The web example is a Gin application with Bun-backed accounts and sessions. It uses two PostgreSQL databases: one for application data and one dedicated to pgislet workspaces.
 
 ```sh
-go run ./examples/web -container -addr 127.0.0.1:8090
+go -C examples run ./web -container
 ```
 
-You can also use an existing database or build a binary:
+Open [http://localhost:8080](http://localhost:8080), create an account, and open your workspace. This command creates two disposable PostgreSQL 18 containers; stopping it removes their data.
+
+For persistent data, use the example's Compose deployment or provide both database connections:
 
 ```sh
-PGISLET_DSN='postgres://postgres:password@localhost:5432/appdb?sslmode=disable' \
-    go run ./examples/web
-
-go build -o build/pgislet-web ./examples/web
-./build/pgislet-web -container -assets ./examples/web/static
+APP_DATABASE_URL='postgres://playground_app:password@localhost:5432/playground_app?sslmode=disable' \
+PGISLET_DATABASE_URL='postgres://postgres:password@localhost:5433/playground_islets?sslmode=disable' \
+    go -C examples run ./web
 ```
 
-The web example creates one Manager at startup and reuses it. The browser receives a random HttpOnly/SameSite cookie, and the server maps the cookie to an Islet ID in memory. Tabs for the same site in the same browser profile share a workspace. Separate profiles or private browsing sessions receive separate workspaces.
+Accounts, hashed session tokens, and account-to-Islet mappings are stored in the application database. Logging out or restarting the HTTP server preserves the workspace. The UI supports registration, login, password changes, SQL execution, schema browsing, and workspace reset. Password changes revoke all sessions.
 
-The example retains at most 32 sessions, expires idle sessions after 30 minutes, runs cleanup every minute, and limits JSON request bodies to 64 KiB. It sets the SQL size limit to 64 KiB and uses the library defaults of a 10-second statement timeout and result limits of 1,000 rows and 4 MiB.
-
-| Method | Path           | Behavior                                |
-| ------ | -------------- | --------------------------------------- |
-| POST   | `/api/session` | Create or reuse the browser workspace   |
-| GET    | `/api/schema`  | List the workspace's tables and columns |
-| POST   | `/api/query`   | Execute `{"sql":"SELECT 1"}`            |
-| POST   | `/api/reset`   | Empty the workspace                     |
-| POST   | `/api/seed`    | Reinitialize with sample data           |
-| DELETE | `/api/session` | Delete the current workspace            |
-
-Mutation requests require the `X-Pgislet-Request: playground` header. SQL requests use `Content-Type: application/json`. The browser client manages these headers and the session cookie.
-
-This is a single-process demo that listens on loopback addresses. It does not provide user account authentication or session sharing across web servers. Graceful shutdown cleans up the example workspaces and removes PostgreSQL when started with `-container`. An abrupt exit while using an existing database may leave Islets behind.
+The application includes request-origin checks, authentication throttling, bounded SQL concurrency, migrations, readiness checks, and graceful shutdown. Public deployments require an HTTPS origin and appropriately configured trusted proxies. See the [Web Playground guide](examples/web/README.md) for the Compose setup, configuration, API, tests, and operational limits, including cross-database provisioning recovery and identity features outside this example's scope.
 
 ## Tests and coverage
 
 ### Unit tests
 
 ```sh
-go test ./internal/... ./examples/...
+go test ./internal/...
+go -C examples test ./web/app
 ```
 
 To check all packages while explicitly disabling integration tests:
 
 ```sh
 PGISLET_UNIT_ONLY=1 go test ./...
+PGISLET_UNIT_ONLY=1 go -C examples test ./...
 ```
 
 This skips integration tests; it does not demonstrate that they pass. Use the Docker-based suite below for complete validation and coverage measurement.
@@ -969,6 +954,8 @@ Integration tests cover user-object isolation, Runtime identity checks, same-Isl
 
 ```sh
 go vet ./...
+go -C examples vet ./...
+go -C examples test -race ./... -count=1
 go test -race -coverpkg=.,./internal/... -coverprofile=coverage.out ./... -count=1
 go tool cover -func=coverage.out
 ```

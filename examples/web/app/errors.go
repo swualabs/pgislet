@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"errors"
@@ -35,8 +35,8 @@ func report(w http.ResponseWriter, err error, result *pgislet.Result) {
 		status = http.StatusConflict
 		problem = apiError{Kind: "unavailable", Message: "The workspace is unavailable. Restore the sample data or clear the workspace."}
 	case errors.Is(err, pgislet.ErrNotFound):
-		status = http.StatusUnauthorized
-		problem = apiError{Kind: "session", Message: "Workspace not found. Reconnect to continue."}
+		status = http.StatusConflict
+		problem = apiError{Kind: "workspace", Message: "Workspace not found. Contact the operator to restore its mapping."}
 	case errors.Is(err, pgislet.ErrTimeout):
 		status = http.StatusRequestTimeout
 		problem = apiError{Kind: "timeout", Message: "Execution timed out. The operation was not committed."}

@@ -11,11 +11,39 @@
     </head>
     <body>
         <header class="topbar">
+            <a class="brand" href="/">pgislet <span class="brand-subtitle">SQL Playground</span></a>
+            <div id="account-menu" class="account-menu" hidden>
+                <span id="account-name"></span>
+                <button id="account-settings" class="button secondary">Account</button>
+                <button id="logout" class="button secondary">Sign out</button>
+            </div>
             <div class="connection">
-                <span class="dot" id="connection-dot"></span><span id="connection-label">Connecting</span>
+                <span class="dot" id="connection-dot"></span><span id="connection-label">Sign in to continue</span>
             </div>
         </header>
-        <div class="layout">
+        <section id="auth-screen" class="auth-screen" aria-labelledby="auth-title">
+            <div class="auth-intro">
+                <span class="eyebrow">YOUR POSTGRESQL WORKSPACE</span>
+                <h1>Make room for<br />your next query.</h1>
+                <p>A personal SQL workspace for exploring data, building tables, and learning by doing. Your work stays with your account.</p>
+                <div class="auth-features"><span>Isolated workspace</span><span>Persistent data</span><span>Real PostgreSQL</span></div>
+            </div>
+            <div class="auth-card">
+                <h2 id="auth-title">Welcome back</h2>
+                <p id="auth-description" class="muted">Sign in to open your SQL workspace.</p>
+                <form id="auth-form">
+                    <label id="name-field" hidden>Display name<input id="auth-name" name="name" autocomplete="name" maxlength="80" /></label>
+                    <label>Email address<input id="auth-email" name="email" type="email" autocomplete="username" maxlength="254" required /></label>
+                    <label>Password<input id="auth-password" name="password" type="password" autocomplete="current-password" required /></label>
+                    <p id="password-help" class="muted" hidden>Use at least 12 characters. Long passphrases work well. Maximum: 72 bytes.</p>
+                    <div id="auth-error" class="error-box" role="alert" hidden></div>
+                    <button id="auth-submit" class="button primary" type="submit">Sign in</button>
+                </form>
+                <button id="auth-switch" class="auth-switch" type="button">New here? Create an account</button>
+                <p class="auth-note">Your workspace is private to your account. Signing out does not delete your tables or data.</p>
+            </div>
+        </section>
+        <div class="layout" id="playground" hidden>
             <aside class="sidebar">
                 <div class="workspace-title">
                     <div>
@@ -27,7 +55,7 @@
                     <button id="refresh" class="icon-button" aria-label="Refresh table list" title="Refresh">↻</button>
                 </div>
                 <div id="tables" class="tables">
-                    <p class="muted">Preparing sample tables.</p>
+                    <p class="muted">Open your workspace to view tables.</p>
                 </div>
                 <div class="sidebar-footer">
                     <span id="workspace-state">Isolated Islet</span>
@@ -77,8 +105,8 @@ ORDER BY price DESC;</textarea
                     <div id="error" class="error-box" role="alert" hidden></div>
                     <div id="result" class="result-body">
                         <div class="empty-state">
-                            <span class="empty-symbol">⌘</span><strong>Preparing your first query.</strong>
-                            <p>Sample results will appear when the database connection is ready.</p>
+                            <span class="empty-symbol">⌘</span><strong>Your workspace is ready.</strong>
+                            <p>Write SQL above and select Run SQL.</p>
                         </div>
                     </div>
                     <div class="result-footer">
@@ -112,6 +140,16 @@ ORDER BY price DESC;</textarea
                     <button class="button secondary" value="cancel">Cancel</button
                     ><button class="button primary" id="dialog-confirm" value="confirm">Clear</button>
                 </div>
+            </form>
+        </dialog>
+        <dialog id="account-dialog">
+            <form id="password-form">
+                <h2>Account security</h2>
+                <p class="muted">Changing your password signs out every session. Your workspace is preserved.</p>
+                <label>Current password<input id="current-password" type="password" autocomplete="current-password" required /></label>
+                <label>New password<input id="new-password" type="password" autocomplete="new-password" required minlength="12" /></label>
+                <div id="password-error" class="error-box" role="alert" hidden></div>
+                <div class="dialog-actions"><button id="close-account" type="button" class="button secondary">Cancel</button><button id="save-password" type="submit" class="button primary">Change password</button></div>
             </form>
         </dialog>
         <div id="status" class="sr-only" role="status" aria-live="polite"></div>

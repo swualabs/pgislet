@@ -1,7 +1,7 @@
 import json
 import sys
 
-major, path = sys.argv[1:]
+major, path, web_path = sys.argv[1:]
 if major not in {"17", "18"}:
     raise SystemExit("Expected PostgreSQL major 17 or 18")
 
@@ -46,3 +46,28 @@ for test, result in results.items():
         raise SystemExit(f"Unexpected integration result: {test}: {result}")
 
 print(f"PostgreSQL {major}: verified {len(results)} integration test results")
+
+web_package = "github.com/swualabs/pgislet/examples/web/tests"
+web_results = {}
+web_passed = False
+with open(web_path, encoding="utf-8") as stream:
+    for line in stream:
+        event = json.loads(line)
+        if event.get("Package") != web_package:
+            continue
+        if event.get("Test") and event.get("Action") in {"pass", "fail", "skip"}:
+            web_results[event["Test"]] = event["Action"]
+        elif not event.get("Test") and event.get("Action") == "pass":
+            web_passed = True
+
+if not web_passed:
+    raise SystemExit("Web integration package did not pass")
+
+for test in ["TestAuthenticationAndIsolation", "TestPasswordAndSessions", "TestRequestProtectionAndSessionStorage", "TestRegistrationValidationAndCapacity", "TestWorkspaceConcurrentProvisioning", "TestWorkspaceProvisioningCompensation"]:
+    if web_results.get(test) != "pass":
+        raise SystemExit(f"Web integration test missing or unsuccessful: {test}")
+
+if any(result != "pass" for result in web_results.values()):
+    raise SystemExit("Unexpected web integration failure or skip")
+
+print(f"PostgreSQL {major}: verified {len(web_results)} web integration results")

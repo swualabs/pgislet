@@ -1,0 +1,11 @@
+.git
+**/.env
+**/.env.*
+**/*.local.*
+**/node_modules
+.artifacts
+.perf
+build
+dist
+coverage.*
+.DS_Store

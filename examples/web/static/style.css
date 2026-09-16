@@ -775,3 +775,36 @@ dialog p {
         margin-top: 23px;
     }
 }
+
+
+.brand-subtitle { font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-left: 8px; }
+.account-menu { display: flex; align-items: center; gap: 10px; margin-left: auto; font-size: 13px; }
+.auth-screen { max-width: 1100px; margin: 0 auto; padding: 84px 36px; display: grid; grid-template-columns: 1.15fr 1fr; gap: 80px; align-items: center; }
+.eyebrow { color: var(--blue); font-size: 11px; letter-spacing: 2px; font-weight: 700; }
+.auth-intro h1 { font-size: clamp(34px, 4vw, 52px); line-height: 1.12; letter-spacing: -2px; margin: 22px 0; }
+.auth-intro p { color: var(--muted); font-size: 15px; line-height: 1.8; max-width: 400px; }
+.auth-features { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+.auth-features span { border: 1px solid var(--line); background: white; border-radius: 6px; padding: 7px 9px; font-size: 11px; color: var(--muted); }
+.auth-card { padding: 32px; background: white; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 8px 35px #1d293c06; }
+.auth-card h2 { margin: 0 0 9px; font-size: 24px; letter-spacing: -.7px; }
+.auth-card > p { font-size: 13px; line-height: 1.6; }
+.auth-card form { margin-top: 24px; }
+label { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; font-size: 13px; font-weight: 600; }
+input { width: 100%; font: inherit; border: 1px solid var(--line); border-radius: 7px; padding: 12px; background: #fbfcfe; color: var(--ink); outline-offset: 3px; }
+input:focus-visible { outline: 2px solid var(--blue); }
+.auth-card .primary { width: 100%; justify-content: center; margin-top: 8px; }
+.auth-switch { display: block; margin: 22px auto 0; border: 0; background: transparent; color: var(--blue); font-size: 13px; }
+.auth-note { border-top: 1px solid var(--line); padding-top: 20px; margin-top: 24px; color: var(--muted); font-size: 11px !important; }
+.auth-card .error-box, #password-error { margin: 12px 0; }
+#password-help { font-size: 11px; line-height: 1.6; }
+@media (max-width: 800px) {
+    .auth-screen { grid-template-columns: 1fr; padding: 36px 20px; gap: 24px; max-width: 480px; }
+    .auth-intro h1 { font-size: 34px; }
+    .auth-intro h1 br { display: none; }
+    .auth-features { display: none; }
+    .brand-subtitle, #account-name { display: none; }
+    .topbar { padding: 0 16px; gap: 8px; }
+    .topbar .connection { display: none; }
+    .account-menu { gap: 6px; }
+    .account-menu .button { padding: 8px; font-size: 11px; }
+}

@@ -844,10 +844,12 @@ RegistryにはRuntime認証に必要なパスワードが保存されます。�
 
 ## サンプルアプリケーション
 
+CLIとWebアプリケーションは、`examples/go.mod` の独立したGoモジュールにまとめられています。GinやBunなどの依存関係は、ライブラリのモジュールとは分離されています。`replace github.com/swualabs/pgislet => ..` により、同じチェックアウト内のライブラリを参照します。以下のコマンドはリポジトリのルートから実行してください。`go -C examples` はサンプルのモジュールを選択します。ルートでの `go test ./...` には、このネストされたモジュールは含まれません。
+
 ### CLI Playground
 
 ```sh
-go run ./examples/playground -container
+go -C examples run ./playground -container
 ```
 
 一時的なPostgreSQL 18コンテナを起動し、次の動作を示します。
@@ -864,64 +866,47 @@ go run ./examples/playground -container
 
 ```sh
 PGISLET_DSN='postgres://postgres:password@localhost:5432/appdb?sslmode=disable' \
-    go run ./examples/playground
+    go -C examples run ./playground
 ```
 
 `-dsn`でDSNを指定することもできます。
 
 ### Web Playground
 
-```sh
-go run ./examples/web -container
-```
-
-[http://127.0.0.1:8080](http://127.0.0.1:8080)を開きます。
-
-別のポートを使用する場合:
+WebサンプルはGinとBunを使用し、アカウントとセッションを永続化します。アプリケーションデータ用とpgisletワークスペース専用の2つのPostgreSQLデータベースを使用します。
 
 ```sh
-go run ./examples/web -container -addr 127.0.0.1:8090
+go -C examples run ./web -container
 ```
 
-既存のデータベースの使用やバイナリのビルドも可能です。
+[http://localhost:8080](http://localhost:8080)でアカウントを作成し、ワークスペースを開きます。このコマンドは一時的なPostgreSQL 18コンテナを2つ作成し、停止時にデータも削除します。
+
+データを永続化する場合は、サンプルのCompose構成を使用するか、両方の接続情報を指定します。
 
 ```sh
-PGISLET_DSN='postgres://postgres:password@localhost:5432/appdb?sslmode=disable' \
-    go run ./examples/web
-
-go build -o build/pgislet-web ./examples/web
-./build/pgislet-web -container -assets ./examples/web/static
+APP_DATABASE_URL='postgres://playground_app:password@localhost:5432/playground_app?sslmode=disable' \
+PGISLET_DATABASE_URL='postgres://postgres:password@localhost:5433/playground_islets?sslmode=disable' \
+    go -C examples run ./web
 ```
 
-Webサンプルは起動時にManagerを1つ作成して再利用します。ブラウザにはランダムなHttpOnly/SameSite Cookieを渡し、サーバーのメモリ内でCookieとIslet IDを対応付けます。同じブラウザプロファイルの同一サイトのタブはワークスペースを共有します。別プロファイルやプライベートブラウジングセッションには別のワークスペースが割り当てられます。
+アカウント、セッショントークンのハッシュ、アカウントとIsletの対応はアプリケーションDBに保存します。ログアウトやHTTPサーバーの再起動でワークスペースは削除されません。UIは登録、ログイン、パスワード変更、SQL実行、スキーマ参照、ワークスペースのリセットに対応します。パスワード変更時はすべてのセッションを無効化します。
 
-最大32セッションを保持し、30分間アイドル状態のセッションを失効させ、毎分クリーンアップします。JSONリクエスト本文は64 KiBまでです。SQLサイズも64 KiBに制限し、文のタイムアウト10秒、結果1,000行・4 MiBにはライブラリのデフォルト値を使用します。
-
-| Method | パス           | 動作                                       |
-| ------ | -------------- | ------------------------------------------ |
-| POST   | `/api/session` | ブラウザのワークスペースを作成または再利用 |
-| GET    | `/api/schema`  | ワークスペースのテーブルとカラムを一覧表示 |
-| POST   | `/api/query`   | `{"sql":"SELECT 1"}`を実行                 |
-| POST   | `/api/reset`   | ワークスペースを空にする                   |
-| POST   | `/api/seed`    | サンプルデータで再初期化                   |
-| DELETE | `/api/session` | 現在のワークスペースを削除                 |
-
-変更リクエストには`X-Pgislet-Request: playground`ヘッダーが必要です。SQLリクエストは`Content-Type: application/json`を使用します。ブラウザ側コードがヘッダーとセッションCookieを管理します。
-
-このサンプルはループバックアドレスで待ち受ける単一プロセスのデモです。ユーザーアカウント認証や複数Webサーバー間のセッション共有は提供しません。正常終了時にはサンプルのワークスペースを削除し、`-container`で起動したPostgreSQLも削除します。既存データベースの利用中に異常終了した場合は、Isletが残る可能性があります。
+Origin検証、認証のレート制限、SQLの同時実行制限、マイグレーション、readinessチェック、正常終了処理を備えています。公開環境ではHTTPSのOriginと適切な信頼済みプロキシ設定が必要です。Composeの起動方法、設定、API、テスト、DB間の作成処理の復旧や認証機能の対応範囲については、[Web Playgroundガイド](../examples/web/README.md)を参照してください。
 
 ## テストとカバレッジ
 
 ### 単体テスト
 
 ```sh
-go test ./internal/... ./examples/...
+go test ./internal/...
+go -C examples test ./web/app
 ```
 
 すべてのパッケージを確認しつつ、統合テストを明示的に無効化する場合:
 
 ```sh
 PGISLET_UNIT_ONLY=1 go test ./...
+PGISLET_UNIT_ONLY=1 go -C examples test ./...
 ```
 
 これは統合テストをスキップするもので、成功を確認したことにはなりません。完全な検証とカバレッジ測定には、以下のDockerベースのテストを使用します。
@@ -962,6 +947,8 @@ go test ./tests/integration -count=1
 
 ```sh
 go vet ./...
+go -C examples vet ./...
+go -C examples test -race ./... -count=1
 go test -race -coverpkg=.,./internal/... -coverprofile=coverage.out ./... -count=1
 go tool cover -func=coverage.out
 ```
