@@ -35,6 +35,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: |
+            go.sum
+            examples/go.sum
 
       - name: Check toolchain and Docker
         run: |
@@ -43,14 +46,19 @@ jobs:
           docker info
 
       - name: Vet
-        run: go vet ./...
+        run: |
+          go vet ./...
+          go -C examples vet ./...
 
       - name: Run tests with coverage
         run: go test -race -p=1 -json -count=1 -timeout=10m -coverpkg=.,./internal/... -coverprofile=coverage.out ./... | tee test-results.jsonl
 
+      - name: Run example tests
+        run: go -C examples test -race -p=1 -json -count=1 -timeout=10m ./... | tee example-test-results.jsonl
+
       - name: Verify integration tests actually ran
         if: ${{ !cancelled() }}
-        run: python3 .github/scripts/check-test-results.py "$PGISLET_TEST_POSTGRES_MAJOR" test-results.jsonl
+        run: python3 .github/scripts/check-test-results.py "$PGISLET_TEST_POSTGRES_MAJOR" test-results.jsonl example-test-results.jsonl
 
       - name: Preserve test results
         if: ${{ !cancelled() }}
@@ -59,6 +67,7 @@ jobs:
           name: postgres-${{ matrix.postgres }}-test-results
           path: |
             test-results.jsonl
+            example-test-results.jsonl
             coverage.out
           if-no-files-found: error
 

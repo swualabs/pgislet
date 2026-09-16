@@ -1,0 +1,72 @@
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: examples/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8080}:8080"
+    environment:
+      APP_DATABASE_URL: postgres://playground_app:${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}@app-db:5432/playground_app?sslmode=disable
+      PGISLET_DATABASE_URL: postgres://postgres:${PGISLET_DB_PASSWORD:?Set PGISLET_DB_PASSWORD}@islet-db:5432/playground_islets?sslmode=disable
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8080}
+      APP_SIGNUP: ${APP_SIGNUP:-true}
+      APP_MAX_ACCOUNTS: ${APP_MAX_ACCOUNTS:-1000}
+      APP_MAX_CONCURRENT: ${APP_MAX_CONCURRENT:-8}
+      APP_AUTH_RATE: ${APP_AUTH_RATE:-20}
+      APP_TRUSTED_PROXIES: ${APP_TRUSTED_PROXIES:-}
+    depends_on:
+      app-db:
+        condition: service_healthy
+      islet-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/playground", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 50s
+
+  app-db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: playground_app
+      POSTGRES_PASSWORD: ${APP_DB_ADMIN_PASSWORD:?Set APP_DB_ADMIN_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+    volumes:
+      - app_data:/var/lib/postgresql
+      - ./deploy/init-app-db.sh:/docker-entrypoint-initdb.d/init-app-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d playground_app"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    shm_size: 128mb
+
+  islet-db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: playground_islets
+      POSTGRES_PASSWORD: ${PGISLET_DB_PASSWORD:?Set PGISLET_DB_PASSWORD}
+    volumes:
+      - islet_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d playground_islets"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    shm_size: 128mb
+
+volumes:
+  app_data:
+  islet_data:

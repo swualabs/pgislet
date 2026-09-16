@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"errors"
@@ -17,7 +17,7 @@ func TestErrorResponses(t *testing.T) {
 		kind   string
 	}{
 		{pgislet.ErrBusy, 409, "busy"}, {pgislet.ErrStaleGeneration, 409, "busy"},
-		{pgislet.ErrFailed, 409, "unavailable"}, {pgislet.ErrNotFound, 401, "session"},
+		{pgislet.ErrFailed, 409, "unavailable"}, {pgislet.ErrNotFound, 409, "workspace"},
 		{pgislet.ErrTimeout, 408, "timeout"}, {pgislet.ErrResultLimit, 422, "limit"},
 		{pgislet.ErrSQLTooLarge, 413, "limit"}, {pgislet.ErrPolicy, 400, "policy"},
 		{pgislet.ErrRuntimeConnection, 503, "connection"}, {pgislet.ErrOutcomeUnknown, 500, "unknown"},

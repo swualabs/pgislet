@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"net/http"
@@ -9,7 +9,10 @@ import (
 )
 
 func TestRequestBoundary(t *testing.T) {
-	handler := New(nil, fstest.MapFS{"index.html": {Data: []byte("playground")}})
+	handler, err := New(testConfig(), nil, nil, fstest.MapFS{"index.html": {Data: []byte("playground")}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cases := []struct {
 		name, method, path, host, origin, header string
 		status                                   int

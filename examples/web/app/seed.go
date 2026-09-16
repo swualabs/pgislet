@@ -1,4 +1,4 @@
-package main
+package app
 
 var seed = []string{
 	`CREATE TABLE customers (id int PRIMARY KEY, name text NOT NULL, city text NOT NULL)`,

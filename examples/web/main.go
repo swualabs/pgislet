@@ -5,99 +5,131 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/swualabs/pgislet"
+	"github.com/swualabs/pgislet/examples/web/app"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		slog.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
 func run() error {
-	_, source, _, _ := runtime.Caller(0)
-	flags := flag.NewFlagSet("pgislet-web", flag.ContinueOnError)
-	disposable := flags.Bool("container", false, "use a disposable PostgreSQL 18 Docker container")
-	dsn := flags.String("dsn", os.Getenv("PGISLET_DSN"), "management DSN for a dedicated PostgreSQL 17 or 18 database")
-	addr := flags.String("addr", "127.0.0.1:8080", "HTTP listen address (loopback only)")
-	assets := flags.String("assets", filepath.Join(filepath.Dir(source), "static"), "frontend asset directory")
+	disposable := flag.Bool("container", false, "start two disposable PostgreSQL 18 containers")
+	migrateOnly := flag.Bool("migrate", false, "apply application database migrations and exit")
+	healthcheck := flag.Bool("healthcheck", false, "check the local HTTP readiness endpoint")
+	flag.Parse()
 
-	if err := flags.Parse(os.Args[1:]); err != nil {
-		return err
+	if *healthcheck {
+		client := &http.Client{Timeout: 4 * time.Second}
+		response, err := client.Get("http://127.0.0.1:8080/readyz")
+		if err != nil {
+			return fmt.Errorf("readiness check failed")
+		}
+
+		defer response.Body.Close()
+
+		if response.StatusCode != http.StatusOK {
+			return fmt.Errorf("server is not ready")
+		}
+
+		return nil
 	}
-
-	host, _, err := net.SplitHostPort(*addr)
-	if err != nil {
-		return fmt.Errorf("listen address: %w", err)
-	}
-
-	ip := net.ParseIP(host)
-
-	if host != "localhost" && (ip == nil || !ip.IsLoopback()) {
-		return errors.New("the example listen address must be localhost or a loopback IP")
-	}
-
-	if _, err := os.Stat(filepath.Join(*assets, "index.html")); err != nil {
-		return fmt.Errorf("frontend assets: %w", err)
-	}
-
+	gin.SetMode(gin.ReleaseMode)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	if *disposable {
-		setup, cancel := context.WithTimeout(ctx, 3*time.Minute)
-		defer cancel()
-
-		db, err := postgres.Run(setup, "postgres:18-alpine", postgres.WithDatabase("pgislet_web"), postgres.WithUsername("postgres"), postgres.WithPassword("disposable-web-secret"), postgres.BasicWaitStrategies())
-		if err != nil {
-			return err
-		}
-
-		defer func() {
-			cleanup, done := context.WithTimeout(context.Background(), 30*time.Second)
-			defer done()
-
-			if err := db.Terminate(cleanup); err != nil {
-				fmt.Fprintln(os.Stderr, err)
+		for _, item := range []struct{ env, database string }{{"APP_DATABASE_URL", "playground_app"}, {"PGISLET_DATABASE_URL", "playground_islets"}} {
+			setup, cancel := context.WithTimeout(ctx, 3*time.Minute)
+			db, err := postgres.Run(setup, "postgres:18-alpine", postgres.WithDatabase(item.database), postgres.WithUsername("postgres"), postgres.WithPassword("disposable-example-secret"), postgres.BasicWaitStrategies())
+			cancel()
+			if err != nil {
+				return err
 			}
-		}()
 
-		*dsn, err = db.ConnectionString(setup, "sslmode=disable")
-		if err != nil {
-			return err
+			defer func() {
+				cleanup, done := context.WithTimeout(context.Background(), 30*time.Second)
+				defer done()
+
+				if err := db.Terminate(cleanup); err != nil {
+					slog.Error("container cleanup failed", "error", err)
+				}
+			}()
+
+			dsn, err := db.ConnectionString(ctx, "sslmode=disable")
+			if err != nil {
+				return err
+			}
+
+			if err := os.Setenv(item.env, dsn); err != nil {
+				return err
+			}
 		}
 	}
 
-	if *dsn == "" {
-		return errors.New("provide -container, -dsn, or PGISLET_DSN")
-	}
-
-	manager, err := pgislet.New(ctx, pgislet.Config{DSN: *dsn, MaxSQLBytes: 64 << 10})
+	cfg, err := app.LoadConfig()
 	if err != nil {
 		return err
 	}
 
+	setup, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+
+	store, err := app.OpenStore(setup, cfg.AppDSN)
+	if err != nil {
+		return fmt.Errorf("application database: %w", err)
+	}
+
+	defer store.DB.Close()
+
+	if err := store.CheckIsolation(setup, cfg.IsletDSN); err != nil {
+		return err
+	}
+
+	if err := store.Migrate(setup); err != nil {
+		return fmt.Errorf("application migrations: %w", err)
+	}
+
+	if *migrateOnly {
+		return nil
+	}
+
+	manager, err := pgislet.New(setup, pgislet.Config{DSN: cfg.IsletDSN, MaxSQLBytes: 64 << 10})
+	if err != nil {
+		return fmt.Errorf("workspace database: %w", err)
+	}
+
 	defer manager.Close()
 
-	app := New(manager, os.DirFS(*assets))
-	server := &http.Server{Addr: *addr, Handler: app, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 40 * time.Second, IdleTimeout: time.Minute, MaxHeaderBytes: 16 << 10}
+	if _, err := os.Stat(cfg.Assets + "/index.html"); err != nil {
+		return err
+	}
+
+	application, err := app.New(cfg, store, manager, os.DirFS(cfg.Assets))
+	if err != nil {
+		return err
+	}
+
+	server := &http.Server{Addr: cfg.Address, Handler: application, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 45 * time.Second, IdleTimeout: time.Minute, MaxHeaderBytes: 16 << 10}
 	stopped := make(chan error, 1)
 	go func() {
 		stopped <- server.ListenAndServe()
 	}()
-
-	fmt.Printf("pgislet web playground: http://%s\nPress Ctrl+C to stop and remove example workspaces.\n", *addr)
+	slog.Info("playground listening", "origin", cfg.Origin, "address", cfg.Address)
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
@@ -111,25 +143,27 @@ func run() error {
 		case serveErr = <-stopped:
 			running = false
 		case <-ticker.C:
-			if err := app.Cleanup(ctx, false); err != nil {
-				fmt.Fprintln(os.Stderr, "expired workspace cleanup:", err)
+			cleanup, done := context.WithTimeout(ctx, 5*time.Second)
+
+			if err := store.Cleanup(cleanup); err != nil {
+				slog.Error("expired session cleanup failed")
 			}
+
+			done()
 		}
 	}
 
-	shutdown, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
+	shutdown, done := context.WithTimeout(context.Background(), 45*time.Second)
+	defer done()
 
 	if err := server.Shutdown(shutdown); err != nil {
 		_ = server.Close()
-		serveErr = errors.Join(serveErr, err)
+		return err
 	}
-
-	cleanupErr := app.Cleanup(shutdown, true)
 
 	if errors.Is(serveErr, http.ErrServerClosed) {
-		serveErr = nil
+		return nil
 	}
 
-	return errors.Join(serveErr, cleanupErr)
+	return serveErr
 }
